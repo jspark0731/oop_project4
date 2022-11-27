@@ -1,5 +1,6 @@
 import socket
 from json import loads, dumps
+import pygame
 from time import sleep
 
 import classes
@@ -16,6 +17,9 @@ class Server:
         self._ip = ip
         self._port = port
 
+    def __del__(self):
+        print("deleted server")
+
     def client_connect(self):
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -28,9 +32,11 @@ class Server:
         self._myships.append(classes.MyShip(100 * len(self._sock), 400))
         return len(self._sock) - 1
 
+
     def close_connection(self):
         for sock in self._sock:
             sock.close()
+        print("closing connection")
 
     def download(self):
         self._myships = []
@@ -42,6 +48,9 @@ class Server:
                     self.connected = False
                     return
                 data = loads(data)
+                if data == "-1":
+                    self.connected = False
+                    return
                 self._myships.append(classes.MyShip(data['myship'][0], data['myship'][1]))
                 for bullet in data['bullet']:
                     self._bullets.append(classes.Bullet(bullet[0], bullet[1], bullet[2]))
@@ -98,6 +107,7 @@ class Server:
             for myship in self._myships:
                 if myship.has_collided(ship):
                     self._life += 1
+                    self._score.append("")
                     remove_ship_ship.append(ship)
 
         destroyed = []
@@ -106,7 +116,10 @@ class Server:
         self._destroyed = destroyed
 
         for ship in remove_ship_bullet + remove_ship_ship:
-            self._ships.remove(ship)
+            try:
+                self._ships.remove(ship)
+            except:
+                pass
 
         for bullet in remove_bullet:
             self._bullets.remove(bullet)
@@ -117,12 +130,17 @@ class Client:
     _ip = ''
     _port = 0
 
+    def __init__(self, ip='127.0.0.1', port=1234):
+        self._ip = ip
+        self._port = port
+
     def init(self, ip='127.0.0.1', port=1234):
         self._ip = ip
         self._port = port
 
     def connect_server(self):
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self._sock.connect((self._ip, self._port))
 
     def upload(self, myships, bullets):
@@ -157,7 +175,7 @@ class Client:
         for ship in data['ships']:
             ships.append(classes.EShip(ship[0], ship[1]))
 
-        destroyed = data['destroyed'] # [[1,2], [2,3]]
+        destroyed = data['destroyed']  # [[1,2], [2,3]]
 
         life = data['life']
 
@@ -166,15 +184,30 @@ class Client:
         return myships, bullets, ships, destroyed, life, score
 
     def close(self):
-        self._sock.close()
+        self._sock.shutdown(socket.SHUT_RDWR)
+        self.clear_buffer()
+
+    def clear_buffer(self):
+        try:
+            while self._sock.recv(1024): pass
+        except:
+            pass
+
+    def __del__(self):
+        print("deleting client")
 
 
-def start_server(cnt=1):
+def start_server(cnt=1, port=1234):
     server = Server()
-    server.init()
+    server.init(port=port)
     server.add_ship([classes.EShip(100, 100), classes.EShip(200, 100), classes.EShip(300, 100)])
-    for i in range(5):
-        server.add_ship([classes.EShip(1000, 100, i * 60, 1)])
+    for i in range(6):
+        # server.add_ship([classes.EShip(1000, 100, i * 30, 1)])
+        for j in range(5):
+            pattern = classes.Pattern(j * 30)
+            server.add_ship(
+                [classes.EShip(pattern.get_pos_x(i % 3 + 1), pattern.get_pos_y(i % 3 + 1), j * 30 + i * 700, i % 3
+                               + 1)])
     for i in range(cnt):
         num = server.client_connect()
         server.send(num, num)
@@ -184,6 +217,7 @@ def start_server(cnt=1):
         server.calc()
         server.upload()
     server.close_connection()
+    return
 
 
 if __name__ == '__main__':
