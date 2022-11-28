@@ -15,17 +15,35 @@ class Colors:
 
 
 class Load_image:
+    myship_img = []
+
     enemy1_img = pygame.image.load("./img/enemy1.png")
     enemy1_img = pygame.transform.scale(enemy1_img, (size_x, size_y))
 
     enemy2_img = pygame.image.load("./img/enemy2.png")
     enemy2_img = pygame.transform.scale(enemy2_img, (size_x, size_y))
 
-    myship_img = pygame.image.load("./img/me.png")
-    myship_img = pygame.transform.scale(myship_img, (size_x, size_y))
+    temp = pygame.image.load("./img/me.png")
+    temp = pygame.transform.scale(temp, (size_x, size_y))
+    myship_img.append(temp)
+    temp = pygame.image.load("./img/me2.png")
+    temp = pygame.transform.scale(temp, (size_x, size_y))
+    myship_img.append(temp)
+    temp = pygame.image.load("./img/me3.png")
+    temp = pygame.transform.scale(temp, (size_x, size_y))
+    myship_img.append(temp)
+    temp = pygame.image.load("./img/me4.png")
+    temp = pygame.transform.scale(temp, (size_x, size_y))
+    myship_img.append(temp)
 
     bullet_img = pygame.image.load("./img/bullet.png")
     bullet_img = pygame.transform.scale(bullet_img, (10, 20))
+
+    expload_img = pygame.image.load('./img/fire.png')
+    expload_img = pygame.transform.scale(expload_img, (50, 30))
+
+    life_img = pygame.image.load('./img/life.png')
+    life_img = pygame.transform.scale(life_img, (20, 20))
 
 
 class Ship:
@@ -135,8 +153,8 @@ class MyShip(Ship):
     def return_id(self):
         return self._id
 
-    def draw(self, screen):
-        screen.blit(Load_image.myship_img, (self._pos_x - self._size_x / 2, self._pos_y - self._size_y / 2))
+    def draw(self, screen, client_num=0):
+        screen.blit(Load_image.myship_img[client_num], (self._pos_x - self._size_x / 2, self._pos_y - self._size_y / 2))
 
     def has_collided(self, eship):
         if not eship.has_spawned():
