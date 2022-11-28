@@ -3,8 +3,8 @@ import pygame
 import os
 from threading import Thread
 
-import functional
-from classes import Bullet, MyShip, EShip, Colors, Pattern
+import backend
+from frontend import Bullet, MyShip, EShip, Colors, Pattern, Load_image
 
 SCREEN_WIDTH = 900
 SCREEN_HEIGHT = 900
@@ -219,12 +219,11 @@ def multi_menu():
 
 
 def main(player=1, host="127.0.0.1", port=1234, server=False):
-    t1 = Thread(target=functional.start_server, args=[player, port])
+    t1 = Thread(target=backend.start_server, args=[player, port])
     t1.daemon = True
 
     bullet_delay = 10
-    client_num = 0
-    client = functional.Client(host, port)
+    client = backend.Client(host, port)
 
     myFont = pygame.font.Font(None, 30)
     background_a = pygame.image.load('./img/background.jpg')
@@ -246,16 +245,12 @@ def main(player=1, host="127.0.0.1", port=1234, server=False):
 
     life = 10
     cnt, tick = 0, 0
-    myships, bullets, ships, destroyed, life_c, score = client.download()
+    myships, bullets, ships, destroyed, life_c, score, server_pause = client.download()
     destro = []
     pygame.mixer.music.load('./sounds/shot.wav')
 
-    expload = pygame.image.load('./img/fire.png')
-    expload = pygame.transform.scale(expload, (50, 30))
-
-    life_img = pygame.image.load('./img/life.png')
-    life_img = pygame.transform.scale(life_img, (20, 20))
     run = True
+    client_pause = False
     while run:
         cnt += 1
         tick += 1
@@ -265,31 +260,50 @@ def main(player=1, host="127.0.0.1", port=1234, server=False):
             if event.type == pygame.QUIT:
                 sys.exit()
 
+            if event.type == pygame.KEYDOWN:
+                key_event = pygame.key.get_pressed()
+                if key_event[pygame.K_p] and not server_pause:
+                    client_pause = not client_pause
+
         key_event = pygame.key.get_pressed()
         if key_event[pygame.K_ESCAPE]:
             run = False
 
-        if key_event[pygame.K_LEFT]:
-            myships[client_num].change_position(-2, 0)
+        if not server_pause:
+            if key_event[pygame.K_LEFT]:
+                if myships[client_num].get_pos_x() - 3 > 0:
+                    myships[client_num].change_position(-3, 0)
 
-        if key_event[pygame.K_RIGHT]:
-            myships[client_num].change_position(2, 0)
+            if key_event[pygame.K_RIGHT]:
+                if myships[client_num].get_pos_x()+3 < SCREEN_WIDTH:
+                    myships[client_num].change_position(3, 0)
 
-        if key_event[pygame.K_UP]:
-            myships[client_num].change_position(0, -2)
+            if key_event[pygame.K_UP]:
+                if myships[client_num].get_pos_y() -3 > 0:
+                    myships[client_num].change_position(0, -3)
 
-        if key_event[pygame.K_DOWN]:
-            myships[client_num].change_position(0, 2)
+            if key_event[pygame.K_DOWN]:
+                if myships[client_num].get_pos_y() + 3 < SCREEN_HEIGHT:
+                    myships[client_num].change_position(0, 3)
 
-        if key_event[pygame.K_SPACE] and cnt > bullet_delay:
-            cnt = 0
-            bullets.append(Bullet(myships[client_num].get_pos_x(), myships[client_num].get_pos_y(), -3))
+            if key_event[pygame.K_SPACE] and cnt > bullet_delay:
+                cnt = 0
+                bullets.append(Bullet(myships[client_num].get_pos_x(), myships[client_num].get_pos_y(), -5))
+
+            if key_event[pygame.K_y] and life <= 0:
+                client.send("restart")
+                life = 10
+                myships, bullets, ships, destroyed, life_c, score, server_pause = client.download()
+                continue
+            elif key_event[pygame.K_n]  and life <= 0:
+                sys.exit()
 
         screen.blit(background_a, (0, 0))
 
-        client.upload(myships[client_num], bullets)
+        client.upload(myships[client_num], bullets, client_pause)
         temp_score = score
-        myships, bullets, ships, destroyed, life_c, score = client.download()
+        myships, bullets, ships, destroyed, life_c, score, server_pause = client.download()
+        if client_pause: server_pause = False
         if life_c != 0:
             pygame.mixer.music.play(1)
         if temp_score != score:
@@ -299,34 +313,46 @@ def main(player=1, host="127.0.0.1", port=1234, server=False):
             destro.append([i[0], i[1], tick])
         for i in destro:
             if tick - i[2] < 20 or 40 < tick - i[2] < 60:
-                screen.blit(expload, (i[0] - 15, i[1] - 15))
+                screen.blit(Load_image.expload_img, (i[0] - 15, i[1] - 15))
             if tick - i[2] > 60:
                 temp.append(i)
         for i in temp:
             destro.remove(i)
-        for i in ships + bullets + myships:
+        for i in ships + bullets:
             i.draw(screen)
+
+        for i in range(len(myships)):
+            myships[i].draw(screen, i)
+
+        text_Title = myFont.render(f"{client_num+1}P", True, Colors.white)
+        screen.blit(text_Title, [800, 50])
 
         life -= life_c
         for i in range(life):
-            screen.blit(life_img, (30 + i * 30, 850))
+            screen.blit(Load_image.life_img, (30 + i * 30, 850))
 
-        text_Title = myFont.render("SCORE:" + str(len(score)), True, Colors.white)
+        text_Title = myFont.render("SCORE:" + str(score), True, Colors.white)
         screen.blit(text_Title, [50, 50])
 
-        pygame.display.flip()
-        if life <= 0:
-            text_Title = myFont.render("GAME OVER\n RETRY? \nPRESS Y / N", True, Colors.white)
+        if server_pause:
+            text_Title = myFont.render("GAME Paused", True, Colors.white)
             screen.blit(text_Title, [400, 400])
-            if key_event[pygame.K_y]:
-                menu()
-            elif key_event[pygame.K_n]:
-                sys.exit()
+
+        if client_pause:
+            text_Title = myFont.render("You Paused The game", True, Colors.white)
+            screen.blit(text_Title, [400, 400])
+
+        if life <= 0:
+            text_Title = myFont.render("GAME OVER RETRY?", True, Colors.white)
+            screen.blit(text_Title, [400, 400])
+            text_Title = myFont.render("PRESS Y / N", True, Colors.white)
+            screen.blit(text_Title, [400, 450])
+
+
+        pygame.display.flip()
 
     client.close()
     os.execl(sys.executable, sys.executable, *sys.argv)
-
-
 
 
 menu()
